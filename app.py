@@ -1,175 +1,69 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 import cv2
 import numpy as np
-import time
 from ultralytics import YOLO
 
-st.set_page_config(
-    page_title="Project Odocoileus - Wildlife Radar",
-    page_icon="🦌",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 1. Page & Layout Setup
+st.set_page_config(page_title="Project Odocoileus", page_icon="🦌", layout="centered")
+st.title("🦌 Project Odocoileus: Universal Radar")
+st.write("Universal Scanning Engine Online. Mount device facing windshield.")
 
-st.markdown("""
-    <style>
-    .stApp {
-        background-color: #0e1117;
-        color: #ffffff;
-    }
-    .metric-card {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-    }
-    .alert-banner {
-        background-color: #da3633;
-        color: white;
-        padding: 15px;
-        border-radius: 8px;
-        font-weight: bold;
-        text-align: center;
-        font-size: 1.2rem;
-        margin-bottom: 20px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
+# 2. Load the Adaptive AI Brain
 @st.cache_resource
-def load_yolo_model():
-    """Loads the pre-trained lightweight YOLOv8n model with st.cache_resource."""
-    try:
-        model = YOLO("yolov8n.pt")
-        return model
-    except Exception as e:
-        st.error(f"Failed to load YOLOv8 model: {e}")
-        return None
+def load_model():
+    return YOLO("yolov8n.pt")
 
-# Target COCO dataset class IDs for wildlife, large mammals, and birds:
-# bird(14), cat(15), dog(16), horse(17), sheep(18), cow(19), bear(21)
-TARGET_ANIMALS = [14, 15, 16, 17, 18, 19, 21]
+model = load_model()
 
-st.sidebar.title("🌲 Odocoileus Control Panel")
-st.sidebar.markdown("---")
-st.sidebar.info("Dashboard-mounted smartphone active scanning radar for wildlife roadkill prevention.")
+# 3. Universal Target Dictionary
+UNIVERSAL_CLASSES = {
+    0: "HUMAN / PEDESTRIAN",
+    14: "BIRD (Avian Vector)",
+    15: "RACCOON / SMALL MAMMAL",
+    16: "COYOTE / FOX (Canid Vector)",
+    17: "DEER / LARGE UNGULATE",
+    18: "BOBCAT / FELID VECTOR",
+    19: "COW / LARGE MAMMAL",
+    21: "BEAR (Ursid Threat)"
+}
 
-# Dominant checkbox titled as requested
-sensor_active = st.sidebar.checkbox("🟢 Activate Project Odocoileus Sensor Grid", value=False)
-
-conf_threshold = st.sidebar.slider("AI Detection Confidence Threshold", 0.1, 0.9, 0.40, 0.05)
-st.sidebar.markdown("---")
-st.sidebar.markdown("**System Status:** " + ("🟢 ACTIVE & SCANNING" if sensor_active else "🔴 STANDBY"))
-
-st.title("🦌 Project Odocoileus: Active Wildlife Radar")
-st.markdown("Transforms your dashboard-mounted smartphone into an active AI scanning radar to prevent roadkill.")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown('<div class="metric-card"><h4>Target Classes</h4><p>Wildlife, Large Mammals & Birds</p></div>', unsafe_allow_html=True)
-with col2:
-    st.markdown(f'<div class="metric-card"><h4>Confidence Filter</h4><p>{conf_threshold * 100:.0f}% Threshold</p></div>', unsafe_allow_html=True)
-with col3:
-    st.markdown('<div class="metric-card"><h4>Hardware Interface</h4><p>cv2.VideoCapture(0)</p></div>', unsafe_allow_html=True)
-
-st.markdown("---")
-
-# Center placeholder window for live video feed
-st.subheader("Live Radar Stream & Optical Sensor Feed")
-video_placeholder = st.empty()
-alert_placeholder = st.empty()
-
-if sensor_active:
-    model = load_yolo_model()
-    if model is None:
-        st.error("Model initialization failed. Please verify dependencies.")
-    else:
-        # Access smartphone camera feed using cv2.VideoCapture(0)
-        cap = cv2.VideoCapture(0)
+# 4. Computer Vision Image Processing Loop
+class UniversalRadarTransformer(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
         
-        if not cap.isOpened():
-            st.error("Error: Could not access the camera via cv2.VideoCapture(0). Please verify device permissions.")
-        else:
-            stop_button = st.sidebar.button("Stop Radar Scan")
+        # Hyper-strict 15% threshold for night road shadows
+        results = model(img, conf=0.15, verbose=False)
+        alert_triggered = False
+
+        for r in results:
+            boxes = r.boxes
+            for box in boxes:
+                cls_id = int(box.cls)
+                confidence = float(box.conf)
+                
+                if cls_id in UNIVERSAL_CLASSES:
+                    alert_triggered = True
+                    detected_label = UNIVERSAL_CLASSES[cls_id]
+                    
+                    # Draw visual safety rectangles
+                    x1, y1, x2, y2 = map(int, box.xyxy)
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 4)
+                    cv2.putText(img, f"{detected_label} ({confidence:.2f})", (x1, y1 - 10), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        if alert_triggered:
+            cv2.putText(img, "CRITICAL ALERT: HIT BRAKES", (30, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 4)
             
-            while cap.isOpened() and sensor_active and not stop_button:
-                ret, frame = cap.read()
-                if not ret:
-                    st.warning("Failed to grab frame from camera feed.")
-                    break
-                
-                # Perform AI detection inference with YOLOv8
-                results = model(frame, conf=conf_threshold, verbose=False)
-                animal_detected_in_frame = False
-                
-                # Process detection results against TARGET_ANIMALS
-                for r in results:
-                    boxes = r.boxes
-                    for box in boxes:
-                        cls_id = int(box.cls[0])
-                        if cls_id in TARGET_ANIMALS:
-                            animal_detected_in_frame = True
-                            
-                            # Extract bounding box coordinates
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            conf = float(box.conf[0])
-                            class_name = model.names[cls_id]
-                            
-                            # Draw thick bounding box around detected animal
-                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 4)
-                            
-                            # Label animal detection
-                            label = f"⚠️ ANIMAL DETECTED ({class_name} {conf:.2f})"
-                            cv2.putText(frame, label, (x1, max(y1 - 10, 20)), 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
+        return img
 
-                # Two-Way Safety Alert Trigger execution
-                if animal_detected_in_frame:
-                    # Internal Warning: Project massive on-screen warning banner and text
-                    cv2.putText(frame, "CRITICAL ALERT: HIT BRAKES", (30, 60), 
-                                cv2.FONT_HERSHEY_DUPLEX, 1.2, (0, 0, 255), 3, cv2.LINE_AA)
-                    
-                    # Trigger dynamic native browser notification using st.toast()
-                    st.toast("🚨 CRITICAL ALERT: ANIMAL DETECTED ON ROADWAY! HIT BRAKES!", icon="⚠️")
-                    
-                    # EXTERNAL WARNING LAYER: Smartphone Physical LED Strobe Flashlight Trigger
-                    # ---------------------------------------------------------------------------------
-                    # [DEVELOPER NOTE / INTEGRATION POINT]:
-                    # Insert your JavaScript wrapper function here or bind to navigator.mediaDevices track 
-                    # constraints to flash the physical LED camera flashlight as a defensive strobe light:
-                    #
-                    # Example JavaScript Wrapper Hook:
-                    # st.markdown(\"\"\"
-                    #     <script>
-                    #     async function flashLedStrobe() {
-                    #         try {
-                    #             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    #             const track = stream.getVideoTracks()[0];
-                    #             // Toggle torch constraint for defensive strobe flash
-                    #             await track.applyConstraints({ advanced: [{ torch: true }] });
-                    #             setTimeout(async () => { await track.applyConstraints({ advanced: [{ torch: false }] }); }, 200);
-                    #         } catch (err) { console.error('Torch error:', err); }
-                    #     }
-                    #     flashLedStrobe();
-                    #     </script>
-                    # \"\"\", unsafe_allow_html=True)
-                    # ---------------------------------------------------------------------------------
-                    
-                    alert_placeholder.markdown(
-                        '<div class="alert-banner">🚨 CRITICAL ALERT: HIT BRAKES! Wildlife detected in sensor path!</div>', 
-                        unsafe_allow_html=True
-                    )
-                else:
-                    alert_placeholder.empty()
-
-                # Stream processed frames smoothly to active st.image placeholder
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                video_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
-                
-                # Frame rate throttling for optimal mobile performance
-                time.sleep(0.03)
-                
-            cap.release()
-else:
-    video_placeholder.info("Sensor Grid is currently in STANDBY mode. Toggle the checkbox in the sidebar to activate the active scanning radar.")
+# 5. Mobile WebRTC Live Port Connection
+webrtc_streamer(
+    key="project-odocoileus-radar",
+    mode=WebRtcMode.SENDRECV,
+    video_transformer_class=UniversalRadarTransformer,
+    rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]},
+    media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False}
+)
