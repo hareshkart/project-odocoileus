@@ -60,11 +60,10 @@ class UniversalRadarTransformer(VideoTransformerBase):
         return img
 
 # 5. Mobile WebRTC Live Port Connection
-# 5. Mobile WebRTC Live Port Connection
 webrtc_streamer(
     key="project-odocoileus-radar",
     mode=WebRtcMode.SENDRECV,
     video_frame_callback=UniversalRadarTransformer().transform,
-    rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]},
+    rtc_configuration={"iceServers": [{"urls": ["stun:://anyfirewall.com"]}]},
     media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False}
 )
