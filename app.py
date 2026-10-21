@@ -1,10 +1,11 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import av
 
-# 1. Advanced Executive Layout Configuration
+# 1. Advanced Executive Wide Layout Configuration
 st.set_page_config(page_title="Project Odocoileus Control Center", page_icon="🦌", layout="wide")
 
 st.markdown("""
@@ -36,36 +37,35 @@ UNIVERSAL_CLASSES = {
     21: "BEAR (Ursid Threat)"
 }
 
-# 3. Streamlined Computer Vision Engine (Optimized to Prevent Freezing)
-class CommandCenterTransformer(VideoTransformerBase):
-    def transform(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        
-        # Run localized visual scanning loop
-        results = model(img, conf=0.15, verbose=False)
-        alert_triggered = False
+# 3. Streamlined Computer Vision Frame Callback
+def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
+    img = frame.to_ndarray(format="bgr24")
+    
+    # Run scanning loop with hyper-strict 15% threshold
+    results = model(img, conf=0.15, verbose=False)
+    alert_triggered = False
 
-        for r in results:
-            boxes = r.boxes
-            for box in boxes:
-                cls_id = int(box.cls)
-                confidence = float(box.conf)
-                
-                if cls_id in UNIVERSAL_CLASSES:
-                    alert_triggered = True
-                    detected_label = UNIVERSAL_CLASSES[cls_id]
-                    
-                    # Draw thick tactical bounding lines
-                    x1, y1, x2, y2 = map(int, box.xyxy)
-                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 4)
-                    cv2.putText(img, f"{detected_label} ({confidence:.2f})", (x1, y1 - 10), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
-        if alert_triggered:
-            cv2.putText(img, "CRITICAL WARNING: THREAT IMMINENT", (30, 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
+    for r in results:
+        boxes = r.boxes
+        for box in boxes:
+            cls_id = int(box.cls)
+            confidence = float(box.conf)
             
-        return img
+            if cls_id in UNIVERSAL_CLASSES:
+                alert_triggered = True
+                detected_label = UNIVERSAL_CLASSES[cls_id]
+                
+                # Draw thick tactical bounding lines
+                x1, y1, x2, y2 = map(int, box.xyxy)
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 4)
+                cv2.putText(img, f"{detected_label} ({confidence:.2f})", (x1, y1 - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+    if alert_triggered:
+        cv2.putText(img, "CRITICAL WARNING: THREAT IMMINENT", (30, 50), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
+        
+    return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # 4. Multi-Panel User Interface Architecture
 col_left, col_right = st.columns([2, 1])
@@ -74,12 +74,13 @@ with col_left:
     st.markdown('<div class="main-title">🦌 Project Odocoileus: Tactical Command Suite</div>', unsafe_allow_html=True)
     st.write("Real-Time Road Threat Tracking Network — System Operational")
     
-    # Live WebRTC stream container
+    # Live WebRTC stream container linked to fixed callback function
     webrtc_streamer(
         key="project-odocoileus-command",
         mode=WebRtcMode.SENDRECV,
-        video_frame_callback=CommandCenterTransformer().transform,
-        media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False}
+        video_frame_callback=video_frame_callback,
+        media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False},
+        rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]}
     )
 
 with col_right:
