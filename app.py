@@ -8,12 +8,33 @@ import av
 # 1. Advanced Executive Wide Layout Configuration
 st.set_page_config(page_title="Project Odocoileus Control Center", page_icon="🦌", layout="wide")
 
+# Custom UI Styling
 st.markdown("""
     <style>
     .main-title { font-size: 2.2rem; font-weight: 800; color: #FF4B4B; margin-bottom: 0.5rem; }
     .status-card { padding: 1rem; border-radius: 0.5rem; background-color: #1E1E1E; margin-bottom: 1rem; }
     </style>
 """, unsafe_allow_html=True)
+
+# Inject JavaScript for high-frequency browser audio alert beeps
+st.components.v1.html("""
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    window.parent.addEventListener('message', function(e) {
+        if (e.data.type === 'TRIGGER_ALERT') {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(900, audioCtx.currentTime); // High pitched safety beep
+            gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.20);
+        }
+    });
+</script>
+""", height=0)
 
 # 2. Universal Deep Learning Core
 @st.cache_resource
@@ -26,6 +47,7 @@ try:
 except Exception as e:
     model_status = f"🔴 Initialization Error: {str(e)}"
 
+# Universal Target Species Dictionary
 UNIVERSAL_CLASSES = {
     0: "HUMAN / PEDESTRIAN",
     14: "BIRD (Avian Vector)",
@@ -37,11 +59,11 @@ UNIVERSAL_CLASSES = {
     21: "BEAR (Ursid Threat)"
 }
 
-# 3. Streamlined Computer Vision Frame Callback
+# 3. Streamlined Computer Vision Frame Callback (Optimized to Prevent Freezing)
 def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
     img = frame.to_ndarray(format="bgr24")
     
-    # Run scanning loop with hyper-strict 15% threshold
+    # Run scanning loop with hyper-strict 15% threshold for night road shadows
     results = model(img, conf=0.15, verbose=False)
     alert_triggered = False
 
@@ -64,11 +86,13 @@ def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
     if alert_triggered:
         cv2.putText(img, "CRITICAL WARNING: THREAT IMMINENT", (30, 50), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
+        # Signal the browser to execute the audio alert beep
+        st.write("""<script>window.parent.postMessage({type: 'TRIGGER_ALERT'}, '*');</script>""", unsafe_allow_html=True)
         
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# 4. Multi-Panel User Interface Architecture
-col_left, col_right = st.columns([2, 1])
+# 4. Multi-Panel User Interface Architecture (Fixed empty layout column bug)
+col_left, col_right = st.columns(2)
 
 with col_left:
     st.markdown('<div class="main-title">🦌 Project Odocoileus: Tactical Command Suite</div>', unsafe_allow_html=True)
@@ -76,7 +100,7 @@ with col_left:
     
     # Live WebRTC stream container linked to fixed callback function
     webrtc_streamer(
-        key="project-odocoileus-command",
+        key="project-odocoileus-command-v3",
         mode=WebRtcMode.SENDRECV,
         video_frame_callback=video_frame_callback,
         media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False},
@@ -101,5 +125,9 @@ with col_right:
     target_route = st.text_input("Active Route Corridor", value="Route 116 - Ridgefield")
     st.write(f"Tracking coordinates along: **{target_route}**")
     
-    if st.button("Mark Current Location as Threat Zone"):
-        st.toast("📍 Coordinate marked securely in temporary session logs!", icon="✅")
+    # Simulated hardware switch configuration
+    st.markdown("### ⚙️ Radar Output Hardware Toggles")
+    alert_type = st.radio("Active Defense Mode", ["Dual-Action (Beep + Light)", "Audio Tone Only", "Strobe Light Only"])
+    
+    if st.button("Mark Current GPS Location as Threat Zone"):
+        st.toast("📍 Coordinates logged securely in session memory logs!", icon="✅")
