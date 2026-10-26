@@ -1,12 +1,23 @@
 import sys
-import os
+from types import ModuleType
 
-# FORCE HEADLESS MODE BEFORE ANY IMAGES LOAD
-os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+# FORCE INTERCEPT CV2 IMPORT BEFORE ULTRALYTICS LOADS
 try:
     import cv2
 except ImportError:
-    pass
+    # Dynamically inject server-safe mock fallback bindings into memory
+    class HeadlessCV2(ModuleType):
+        def __init__(self):
+            super().__init__('cv2')
+            self.FONT_HERSHEY_SIMPLEX = 0
+        def rectangle(self, img, pt1, pt2, color, thickness=None, lineType=None, shift=None):
+            pass
+        def putText(self, img, text, org, fontFace, fontScale, color, thickness=None, lineType=None, bottomLeftOrigin=None):
+            pass
+    sys.modules['cv2'] = HeadlessCV2()
+
+import os
+os.environ["YOLO_VERBOSE"] = "False"
 
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
@@ -51,10 +62,10 @@ def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
     img = frame.to_ndarray(format="bgr24")
     
     # Run scanning loop with hyper-strict 15% threshold
-    import cv2
     results = model(img, conf=0.15, verbose=False)
     alert_triggered = False
 
+    # Dynamic box overlay logic built natively over matrix values
     for r in results:
         boxes = r.boxes
         for box in boxes:
@@ -64,20 +75,18 @@ def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
             if cls_id in UNIVERSAL_CLASSES:
                 alert_triggered = True
                 detected_label = UNIVERSAL_CLASSES[cls_id]
-                
                 x1, y1, x2, y2 = map(int, box.xyxy)
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 4)
-                cv2.putText(img, f"{detected_label} ({confidence:.2f})", (x1, y1 - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                
+                # Draw high-visibility tactical boundaries directly onto pixel grids
+                img[y1:y1+4, x1:x2] = [0, 0, 255]
+                img[y2-4:y2, x1:x2] = [0, 0, 255]
+                img[y1:y2, x1:x1+4] = [0, 0, 255]
+                img[y1:y2, x2-4:x2] = [0, 0, 255]
 
-    if alert_triggered:
-        cv2.putText(img, "CRITICAL WARNING: THREAT IMMINENT", (30, 50), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
-        
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # 4. Multi-Panel User Interface Architecture
-col_left, col_right = st.columns([2, 1])
+col_left, col_right = st.columns(2)
 
 with col_left:
     st.markdown('<div class="main-title">🦌 Project Odocoileus: Tactical Command Suite</div>', unsafe_allow_html=True)
