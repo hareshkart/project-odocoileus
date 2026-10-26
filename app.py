@@ -4,16 +4,22 @@ import sys
 class UniversalMagicMock(object):
     FONT_HERSHEY_SIMPLEX = 0
     def __getattr__(self, name):
-        # Automatically generates a harmless function for any requested method
         def dummy_fallback(*args, **kwargs):
             return None
         return dummy_fallback
 
-# Inject the magic mock into the global system modules
 sys.modules['cv2'] = UniversalMagicMock()
 
 import os
 os.environ["YOLO_VERBOSE"] = "False"
+
+# FIX THE PYTORCH WEIGHTS LOADING SECURITY LOCKOUT
+import torch
+try:
+    from ultralytics.nn.tasks import DetectionModel
+    torch.serialization.add_safe_globals([DetectionModel])
+except Exception:
+    pass
 
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
@@ -31,7 +37,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Load the core AI engine weights
+# Load the core AI engine weights safely
 @st.cache_resource
 def load_model():
     return YOLO("yolov8n.pt")
@@ -94,12 +100,12 @@ with col_left:
     st.markdown('<div class="main-title">🦌 Project Odocoileus: Tactical Command Suite</div>', unsafe_allow_html=True)
     st.write("Real-Time Road Threat Tracking Network — System Operational")
     
+    # Cleaned up mobile video configurations to fix parsing error
     webrtc_streamer(
-        key="project-odocoileus-command",
+        key="project-odocoileus-command-final",
         mode=WebRtcMode.SENDRECV,
         video_frame_callback=video_frame_callback,
-        media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False},
-        rtc_configuration={"iceServers": [{"urls": ["stun:://google.com"]}]}
+        media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False}
     )
 
 with col_right:
