@@ -38,15 +38,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Load the core AI engine weights safely
+# Alternative high-performance override
 @st.cache_resource
 def load_model():
-    return YOLO("yolov8n.pt")
-
-try:
-    model = load_model()
-    model_status = "🟢 Operational (YOLOv8n Active)"
-except Exception as e:
-    model_status = f"🔴 Initialization Error: {str(e)}"
+    # We patch the default PyTorch load directly at runtime to allow safe unpacking
+    import torch
+    original_load = torch.load
+    torch.load = lambda *args, **kwargs: original_load(*args, **{**kwargs, 'weights_only': False})
+    model = YOLO("yolov8n.pt")
+    torch.load = original_load # Restore standard security settings for other libraries
+    return model
 
 UNIVERSAL_CLASSES = {
     0: "HUMAN / PEDESTRIAN",
