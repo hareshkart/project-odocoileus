@@ -1,20 +1,16 @@
 import sys
-from types import ModuleType
 
-# FORCE INTERCEPT CV2 IMPORT BEFORE ULTRALYTICS LOADS
-try:
-    import cv2
-except ImportError:
-    # Dynamically inject server-safe mock fallback bindings into memory
-    class HeadlessCV2(ModuleType):
-        def __init__(self):
-            super().__init__('cv2')
-            self.FONT_HERSHEY_SIMPLEX = 0
-        def rectangle(self, img, pt1, pt2, color, thickness=None, lineType=None, shift=None):
-            pass
-        def putText(self, img, text, org, fontFace, fontScale, color, thickness=None, lineType=None, bottomLeftOrigin=None):
-            pass
-    sys.modules['cv2'] = HeadlessCV2()
+# 1. UNIVERSAL MONKEY-PATCH FOR CV2 BEFORE ANY LIBRARIES INITIATE
+class UniversalMagicMock(object):
+    FONT_HERSHEY_SIMPLEX = 0
+    def __getattr__(self, name):
+        # Automatically generates a harmless function for any requested method
+        def dummy_fallback(*args, **kwargs):
+            return None
+        return dummy_fallback
+
+# Inject the magic mock into the global system modules
+sys.modules['cv2'] = UniversalMagicMock()
 
 import os
 os.environ["YOLO_VERBOSE"] = "False"
@@ -25,7 +21,7 @@ import numpy as np
 from ultralytics import YOLO
 import av
 
-# 1. Advanced Executive Wide Layout Configuration
+# 2. Executive Wide Layout Setup
 st.set_page_config(page_title="Project Odocoileus Control Center", page_icon="🦌", layout="wide")
 
 st.markdown("""
@@ -35,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. Universal Deep Learning Core
+# Load the core AI engine weights
 @st.cache_resource
 def load_model():
     return YOLO("yolov8n.pt")
@@ -57,32 +53,38 @@ UNIVERSAL_CLASSES = {
     21: "BEAR (Ursid Threat)"
 }
 
-# 3. Streamlined Computer Vision Frame Callback
+# 3. Streamlined Computer Vision Frame Callback (Pure Matrix Operations)
 def video_frame_callback(frame: av.VideoFrame) -> av.VideoFrame:
     img = frame.to_ndarray(format="bgr24")
+    h, w, _ = img.shape
     
     # Run scanning loop with hyper-strict 15% threshold
     results = model(img, conf=0.15, verbose=False)
     alert_triggered = False
 
-    # Dynamic box overlay logic built natively over matrix values
     for r in results:
         boxes = r.boxes
         for box in boxes:
             cls_id = int(box.cls)
-            confidence = float(box.conf)
             
             if cls_id in UNIVERSAL_CLASSES:
                 alert_triggered = True
-                detected_label = UNIVERSAL_CLASSES[cls_id]
                 x1, y1, x2, y2 = map(int, box.xyxy)
                 
-                # Draw high-visibility tactical boundaries directly onto pixel grids
-                img[y1:y1+4, x1:x2] = [0, 0, 255]
-                img[y2-4:y2, x1:x2] = [0, 0, 255]
-                img[y1:y2, x1:x1+4] = [0, 0, 255]
-                img[y1:y2, x2-4:x2] = [0, 0, 255]
+                # Constrain bounding boxes to valid array boundaries to prevent out-of-bounds crashes
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                
+                # Draw thick red tactical safety boundaries directly onto raw pixel matrix layers
+                img[y1:min(y1+6, h), x1:x2] = [0, 0, 255] # Top edge
+                img[max(y2-6, 0):y2, x1:x2] = [0, 0, 255] # Bottom edge
+                img[y1:y2, x1:min(x1+6, w)] = [0, 0, 255] # Left edge
+                img[y1:y2, max(x2-6, 0):x2] = [0, 0, 255] # Right edge
 
+    if alert_triggered:
+        # Draw a massive solid red warning strip across the top of the matrix if a threat is active
+        img[0:40, 0:w] = [0, 0, 255]
+        
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # 4. Multi-Panel User Interface Architecture
