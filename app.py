@@ -1,3 +1,5 @@
+import os
+os.environ["YOLO_VERBOSE"] = "False"
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
